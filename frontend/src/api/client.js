@@ -1,8 +1,8 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: window.location.hostname === 'localhost' 
-    ? '/api' 
+  baseURL: window.location.hostname === 'localhost'
+    ? '/api'
     : 'https://learnsync-api.onrender.com/api',
   headers: { 'Content-Type': 'application/json' },
 })
