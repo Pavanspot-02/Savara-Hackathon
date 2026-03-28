@@ -9,11 +9,18 @@ import sqlite3
 import json
 import os
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
 app = FastAPI(title="EdTech Platform API")
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows Soham's frontend to connect without getting blocked
+    allow_credentials=True,
+    allow_methods=["*"],  
+    allow_headers=["*"],
+)
 # --- Security & Config ---
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-for-dev")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
