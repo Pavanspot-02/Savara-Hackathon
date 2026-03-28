@@ -6,18 +6,21 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import sqlite3
 import json
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(title="EdTech Platform API")
 
 # --- Security & Config ---
-SECRET_KEY = "super-secret-hackathon-key-change-this-later" # In prod, use env vars!
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 300
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-DB_NAME = "edtech_platform.db"
+DB_NAME = os.getenv("DATABASE_URL", "edtech_platform.db").replace("sqlite:///", "")
 
 def get_db():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
