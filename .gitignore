@@ -1,0 +1,16 @@
+# Security: Never push your secret keys
+.env
+
+# Database: Don't push local DB files (Pavan will create his own)
+*.db
+edtech_platform.db
+
+# Python: Ignore temporary cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment: Ignore your local virtual environment
+.venv/
+env/
+venv/

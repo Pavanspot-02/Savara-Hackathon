@@ -4,16 +4,18 @@ from pydantic import BaseModel
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from typing import Dict, Optional, List
 import sqlite3
 import json
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 app = FastAPI(title="EdTech Platform API")
 
 # --- Security & Config ---
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-for-dev")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
@@ -30,27 +32,26 @@ def get_db():
     finally:
         conn.close()
 
-# --- Pydantic Models (For API Inputs) ---
+# --- Pydantic Models ---
 class UserCreate(BaseModel):
     username: str
     password: str
 
 class NoteCreate(BaseModel):
     raw_text: str
-    summary: str
-    concepts: dict  # Will be converted to JSON string
+    summary: Optional[str] = None
+    concepts: Optional[Dict[str, str]] = None 
 
 class QuizResultCreate(BaseModel):
     note_id: int
-    score: int
+    score: float
     total_questions: int
-    answers: dict
+    answers: Dict
 
-# --- CRUD Utilities ---
+# --- Auth Utilities ---
 def get_user_by_username(db, username: str):
     return db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
-# --- Auth Dependencies ---
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -80,8 +81,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: sqlite3.Connection
 
 @app.post("/signup")
 def create_user(user: UserCreate, db: sqlite3.Connection = Depends(get_db)):
-    existing_user = get_user_by_username(db, user.username)
-    if existing_user:
+    if get_user_by_username(db, user.username):
         raise HTTPException(status_code=400, detail="Username already registered")
     
     hashed_password = pwd_context.hash(user.password)
@@ -102,17 +102,27 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: sqlite3.Connecti
 @app.post("/notes/")
 def save_note(note: NoteCreate, current_user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
     cursor = db.cursor()
+    concepts_json = json.dumps(note.concepts) if note.concepts else None
     cursor.execute(
         "INSERT INTO notes (user_id, raw_text, summary, concepts) VALUES (?, ?, ?, ?)",
-        (current_user["id"], note.raw_text, note.summary, json.dumps(note.concepts))
+        (current_user["id"], note.raw_text, note.summary, concepts_json)
     )
     db.commit()
     return {"message": "Note saved", "note_id": cursor.lastrowid}
 
 @app.get("/notes/")
-def get_notes_by_user(current_user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
-    notes = db.execute("SELECT * FROM notes WHERE user_id = ?", (current_user["id"],)).fetchall()
-    return [dict(note) for note in notes]
+def get_notes(current_user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    cursor = db.cursor()
+    cursor.execute("SELECT id, raw_text, summary, concepts FROM notes WHERE user_id = ?", (current_user["id"],))
+    rows = cursor.fetchall()
+    return [
+        {
+            "id": row["id"], 
+            "raw_text": row["raw_text"], 
+            "summary": row["summary"], 
+            "concepts": json.loads(row["concepts"]) if row["concepts"] else {}
+        } for row in rows
+    ]
 
 @app.post("/quiz_results/")
 def save_quiz_result(quiz: QuizResultCreate, current_user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
